@@ -1,3 +1,4 @@
+-- +goose Up
 CREATE TABLE positions (
     id UUID PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -13,7 +14,7 @@ CREATE TABLE positions (
 CREATE TABLE clients (
     id UUID PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
-    phone VARCHAR(50) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
     email VARCHAR(255) NOT NULL,
     login VARCHAR(255) NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
@@ -56,3 +57,15 @@ CREATE INDEX idx_orders_client_id ON orders(client_id);
 CREATE INDEX idx_orders_seller_id ON orders(seller_id);
 CREATE INDEX idx_order_items_order_id ON order_items(order_id);
 CREATE INDEX idx_order_items_position_id ON order_items(position_id);
+
+-- +goose Down
+DROP INDEX IF EXISTS idx_order_items_position_id;
+DROP INDEX IF EXISTS idx_order_items_order_id;
+DROP INDEX IF EXISTS idx_orders_seller_id;
+DROP INDEX IF EXISTS idx_orders_client_id;
+
+DROP TABLE IF EXISTS order_items;
+DROP TABLE IF EXISTS orders;
+DROP TABLE IF EXISTS sellers;
+DROP TABLE IF EXISTS clients;
+DROP TABLE IF EXISTS positions;

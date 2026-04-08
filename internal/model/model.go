@@ -1,9 +1,8 @@
 package model
 
 import (
-	"beer/internal/money"
-	"time"
 	"github.com/google/uuid"
+	"time"
 )
 
 type Position struct {
@@ -13,7 +12,7 @@ type Position struct {
 	ImageURL    string      `json:"image_url"`
 	SizeLiters  float32     `json:"size_liters"`
 	Quantity    int         `json:"quantity"`
-	Price       money.Money `json:"price"`
+	Price       int64       `json:"price"`
 	CreatedAt   time.Time   `json:"created_at"`
 	UpdatedAt   time.Time   `json:"updated_at"`
 }
@@ -52,5 +51,5 @@ type OrderItem struct {
 	OrderID    uuid.UUID   `json:"order_id"`
 	PositionID uuid.UUID   `json:"position_id"`
 	Quantity   int         `json:"quantity"`
-	Price      money.Money `json:"price"`
+	Price      int64       `json:"price"`
 }

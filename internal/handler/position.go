@@ -2,34 +2,38 @@ package handler
 
 import (
 	"beer/internal/model"
-	"beer/internal/money"
-	"beer/internal/storage"
-	"net/http"
-	"time"
+	positionrepo "beer/internal/repository/position"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"net/http"
+	"strconv"
+	"time"
 )
 
-type CreatePositionRequest struct {
-	Name string `json:"name"`
-	Description string `json:"description"`
-	ImageURL string `json:"image_url"`
-	SizeLiters float32 `json:"size_liters"`
-	Quantity int `json:"quantity"`
-	Price int64 `json:"price"`
-}
-
-type UpdatePositionRequest struct {
-	Name *string `json:"name"`
-	Description *string `json:"description"`
-	ImageURL *string `json:"image_url"`
-	SizeLiters *float32 `json:"size_liters"`
-	Quantity *int `json:"quantity"`
-	Price *int64 `json:"price"`
-}
-
 func GetPositions(c *gin.Context) {
-	positions := storage.GetPositions()
+	limit := 20
+	offset := 0
+	if rawLimit := c.Query("limit"); rawLimit != "" {
+		parsedLimit, err := strconv.Atoi(rawLimit)
+		if err != nil || parsedLimit <= 0 || parsedLimit > 100 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "limit must be an integer between 1 and 100"})
+			return
+		}
+		limit = parsedLimit
+	}
+	if rawOffset := c.Query("offset"); rawOffset != "" {
+		parsedOffset, err := strconv.Atoi(rawOffset)
+		if err != nil || parsedOffset < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "offset must be an integer greater than or equal to 0"})
+			return
+		}
+		offset = parsedOffset
+	}
+	positions, err := positionrepo.GetPositions(c.Request.Context(), limit, offset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
 	c.JSON(http.StatusOK, positions)
 }
 
@@ -39,27 +43,26 @@ func CreatePosition(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
-	if req.Name == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
-		return
-	}
-	if req.Price <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "price must be greater than zero"})
+	if err := validateCreatePositionRequest(req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	now := time.Now()
 	position := model.Position{
-		ID: uuid.New(),
-		Name: req.Name,
+		ID:          uuid.New(),
+		Name:        req.Name,
 		Description: req.Description,
-		ImageURL: req.ImageURL,
-		SizeLiters: req.SizeLiters,
-		Quantity: req.Quantity,
-		Price: money.New(req.Price),
-		CreatedAt: now,
-		UpdatedAt: now,
+		ImageURL:    req.ImageURL,
+		SizeLiters:  req.SizeLiters,
+		Quantity:    req.Quantity,
+		Price:       req.Price,
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}
-	storage.AddPosition(position)
+	if err := positionrepo.AddPosition(c.Request.Context(), position); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
 	c.JSON(http.StatusCreated, position)
 }
 
@@ -70,12 +73,14 @@ func GetPositionByID(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	positions := storage.GetPositions()
-	for _, position := range positions {
-		if position.ID == id {
-			c.JSON(http.StatusOK, position)
-			return
-		}
+	position, ok, err := positionrepo.GetPositionByID(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+	if ok {
+		c.JSON(http.StatusOK, position)
+		return
 	}
 	c.JSON(http.StatusNotFound, gin.H{"error": "position not found"})
 }
@@ -87,7 +92,11 @@ func DeletePositionByID(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	deleted := storage.DeletePositionByID(id)
+	deleted, err := positionrepo.DeletePositionByID(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
 	if !deleted {
 		c.JSON(http.StatusNotFound, gin.H{"error": "position not found"})
 		return
@@ -107,7 +116,8 @@ func PatchPositionByID(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
-	position, ok := storage.PatchPositionByID(
+	position, ok, err := positionrepo.PatchPositionByID(
+		c.Request.Context(),
 		id,
 		req.Name,
 		req.Description,
@@ -116,6 +126,10 @@ func PatchPositionByID(c *gin.Context) {
 		req.Quantity,
 		req.Price,
 	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
 	if !ok {
 		c.JSON(http.StatusNotFound, gin.H{"error": "position not found"})
 		return

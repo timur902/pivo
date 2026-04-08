@@ -2,31 +2,20 @@ package handler
 
 import (
 	"beer/internal/model"
-	"beer/internal/storage"
-	"net/http"
-	"time"
+	clientrepo "beer/internal/repository/client"
+	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"net/http"
+	"time"
 )
 
-type CreateClientRequest struct {
-	Name         string `json:"name"`
-	Phone        string `json:"phone"`
-	Email        string `json:"email"`
-	Login        string `json:"login"`
-	PasswordHash string `json:"password_hash"`
-}
-
-type UpdateClientRequest struct {
-	Name         *string `json:"name"`
-	Phone        *string `json:"phone"`
-	Email        *string `json:"email"`
-	Login        *string `json:"login"`
-	PasswordHash *string `json:"password_hash"`
-}
-
 func GetClients(c *gin.Context) {
-	clients := storage.GetClients()
+	clients, err := clientrepo.GetClients(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
 	c.JSON(http.StatusOK, clients)
 }
 
@@ -36,7 +25,11 @@ func GetClientByID(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	client, ok := storage.GetClientByID(id)
+	client, ok, err := clientrepo.GetClientByID(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
 	if !ok {
 		c.JSON(http.StatusNotFound, gin.H{"error": "client not found"})
 		return
@@ -50,8 +43,8 @@ func CreateClient(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
-	if req.Name == "" || req.Phone == "" || req.Email == "" || req.Login == "" || req.PasswordHash == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "name, phone, email, login and password_hash are required"})
+	if err := validateCreateClientRequest(req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	now := time.Now()
@@ -65,7 +58,14 @@ func CreateClient(c *gin.Context) {
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
-	storage.AddClient(client)
+	if err := clientrepo.AddClient(c.Request.Context(), client); err != nil {
+		if errors.Is(err, clientrepo.ErrLoginAlreadyExists) {
+			c.JSON(http.StatusConflict, gin.H{"error": "login already exists"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
 	c.JSON(http.StatusCreated, client)
 }
 
@@ -80,7 +80,8 @@ func PatchClientByID(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
-	client, ok := storage.PatchClientByID(
+	client, ok, err := clientrepo.PatchClientByID(
+		c.Request.Context(),
 		id,
 		req.Name,
 		req.Phone,
@@ -88,6 +89,14 @@ func PatchClientByID(c *gin.Context) {
 		req.Login,
 		req.PasswordHash,
 	)
+	if err != nil {
+		if errors.Is(err, clientrepo.ErrLoginAlreadyExists) {
+			c.JSON(http.StatusConflict, gin.H{"error": "login already exists"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
 	if !ok {
 		c.JSON(http.StatusNotFound, gin.H{"error": "client not found"})
 		return
@@ -101,7 +110,11 @@ func DeleteClientByID(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	deleted := storage.DeleteClientByID(id)
+	deleted, err := clientrepo.DeleteClientByID(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
 	if !deleted {
 		c.JSON(http.StatusNotFound, gin.H{"error": "client not found"})
 		return

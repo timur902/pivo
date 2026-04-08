@@ -2,27 +2,20 @@ package handler
 
 import (
 	"beer/internal/model"
-	"beer/internal/storage"
-	"net/http"
-	"time"
+	sellerrepo "beer/internal/repository/seller"
+	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"net/http"
+	"time"
 )
 
-type CreateSellerRequest struct {
-	Name         string `json:"name"`
-	Login        string `json:"login"`
-	PasswordHash string `json:"password_hash"`
-}
-
-type UpdateSellerRequest struct {
-	Name         *string `json:"name"`
-	Login        *string `json:"login"`
-	PasswordHash *string `json:"password_hash"`
-}
-
 func GetSellers(c *gin.Context) {
-	sellers := storage.GetSellers()
+	sellers, err := sellerrepo.GetSellers(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
 	c.JSON(http.StatusOK, sellers)
 }
 
@@ -33,7 +26,11 @@ func GetSellerByID(c *gin.Context) {
 		return
 	}
 
-	seller, ok := storage.GetSellerByID(id)
+	seller, ok, err := sellerrepo.GetSellerByID(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
 	if !ok {
 		c.JSON(http.StatusNotFound, gin.H{"error": "seller not found"})
 		return
@@ -49,8 +46,8 @@ func CreateSeller(c *gin.Context) {
 		return
 	}
 
-	if req.Name == "" || req.Login == "" || req.PasswordHash == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "name, login and password_hash are required"})
+	if err := validateCreateSellerRequest(req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -64,7 +61,14 @@ func CreateSeller(c *gin.Context) {
 		UpdatedAt:    now,
 	}
 
-	storage.AddSeller(seller)
+	if err := sellerrepo.AddSeller(c.Request.Context(), seller); err != nil {
+		if errors.Is(err, sellerrepo.ErrLoginAlreadyExists) {
+			c.JSON(http.StatusConflict, gin.H{"error": "login already exists"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
 	c.JSON(http.StatusCreated, seller)
 }
 
@@ -81,12 +85,21 @@ func PatchSellerByID(c *gin.Context) {
 		return
 	}
 
-	seller, ok := storage.PatchSellerByID(
+	seller, ok, err := sellerrepo.PatchSellerByID(
+		c.Request.Context(),
 		id,
 		req.Name,
 		req.Login,
 		req.PasswordHash,
 	)
+	if err != nil {
+		if errors.Is(err, sellerrepo.ErrLoginAlreadyExists) {
+			c.JSON(http.StatusConflict, gin.H{"error": "login already exists"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
 	if !ok {
 		c.JSON(http.StatusNotFound, gin.H{"error": "seller not found"})
 		return
@@ -102,7 +115,11 @@ func DeleteSellerByID(c *gin.Context) {
 		return
 	}
 
-	deleted := storage.DeleteSellerByID(id)
+	deleted, err := sellerrepo.DeleteSellerByID(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
 	if !deleted {
 		c.JSON(http.StatusNotFound, gin.H{"error": "seller not found"})
 		return
