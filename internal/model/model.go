@@ -6,50 +6,73 @@ import (
 )
 
 type Position struct {
-	ID          uuid.UUID   `json:"id"`
-	Name        string      `json:"name"`
-	Description string      `json:"description"`
-	ImageURL    string      `json:"image_url"`
-	SizeLiters  float32     `json:"size_liters"`
-	Quantity    int         `json:"quantity"`
-	Price       int64       `json:"price"`
-	CreatedAt   time.Time   `json:"created_at"`
-	UpdatedAt   time.Time   `json:"updated_at"`
+	ID          uuid.UUID
+	Name        string
+	Description string
+	ImageURL    string
+	SizeLiters  float32
+	Quantity    int
+	Price       int64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type Client struct {
-	ID           uuid.UUID `json:"id"`
-	Name         string    `json:"name"`
-	Phone        string    `json:"phone"`
-	Email        string    `json:"email"`
-	Login        string    `json:"login"`
-	PasswordHash string    `json:"password_hash"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID           uuid.UUID
+	Name         string
+	Phone        string
+	Email        string
+	Login        string
+	PasswordHash string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+type ClientPatch struct {
+	Name         *string
+	Phone        *string
+	Email        *string
+	Login        *string
+	PasswordHash *string
 }
 
 type Seller struct {
-	ID           uuid.UUID `json:"id"`
-	Name         string    `json:"name"`
-	Login        string    `json:"login"`
-	PasswordHash string    `json:"password_hash"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID           uuid.UUID
+	Name         string
+	Login        string
+	PasswordHash string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+type SellerPatch struct {
+	Name         *string
+	Login        *string
+	PasswordHash *string
 }
 
 type Order struct {
-	ID        uuid.UUID `json:"id"`
-	ClientID  uuid.UUID `json:"client_id"`
-	SellerID  uuid.UUID `json:"seller_id"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID        uuid.UUID
+	ClientID  uuid.UUID
+	SellerID  uuid.UUID
+	Status    string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type OrderItem struct {
-	ID         uuid.UUID   `json:"id"`
-	OrderID    uuid.UUID   `json:"order_id"`
-	PositionID uuid.UUID   `json:"position_id"`
-	Quantity   int         `json:"quantity"`
-	Price      int64       `json:"price"`
+	ID         uuid.UUID
+	OrderID    uuid.UUID
+	PositionID uuid.UUID
+	Quantity   int
+	Price      int64
+}
+
+type PositionPatch struct {
+	Name        *string
+	Description *string
+	ImageURL    *string
+	SizeLiters  *float32
+	Quantity    *int
+	Price       *int64
 }

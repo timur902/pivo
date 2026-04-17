@@ -2,9 +2,10 @@ package main
 
 import (
 	"beer/internal/handler"
-	clientrepo "beer/internal/repository/client"
-	positionrepo "beer/internal/repository/position"
-	sellerrepo "beer/internal/repository/seller"
+	"beer/internal/repository/client"
+	"beer/internal/repository/position"
+	"beer/internal/repository/seller"
+	"beer/internal/usecase/seller"
 	"beer/pkg/pgprovider"
 	"context"
 	"github.com/gin-gonic/gin"
@@ -26,39 +27,45 @@ func main() {
 		log.Fatalf("database connection failed: %v", err)
 	}
 	defer pool.Close()
-	clientrepo.SetPool(pool)
-	sellerrepo.SetPool(pool)
-	positionrepo.SetPool(pool)
+	clientRepo := client.NewRepository(pool)
+	sellerRepo := seller.NewRepository(pool)
+	positionRepo := position.NewRepository(pool)
+	sellerUC := sellerusecase.NewUsecase(sellerRepo)
+	hdl := handler.NewHandler(clientRepo, positionRepo, sellerUC)
 
 	router := gin.Default()
 
-	router.GET("/positions", handler.GetPositions)
-	router.GET("/positions/:id", handler.GetPositionByID)
-	router.POST("/positions", handler.CreatePosition)
-	router.PATCH("/positions/:id", handler.PatchPositionByID)
-	router.DELETE("/positions/:id", handler.DeletePositionByID)
+	router.GET("/positions", hdl.GetPositions)
+	router.GET("/positions/:id", hdl.GetPositionByID)
+	router.POST("/positions", hdl.CreatePosition)
+	router.PATCH("/positions/:id", hdl.PatchPositionByID)
+	router.DELETE("/positions/:id", hdl.DeletePositionByID)
 
-	router.GET("/clients", handler.GetClients)
-	router.GET("/clients/:id", handler.GetClientByID)
-	router.POST("/clients", handler.CreateClient)
-	router.PATCH("/clients/:id", handler.PatchClientByID)
-	router.DELETE("/clients/:id", handler.DeleteClientByID)
+	router.GET("/clients", hdl.GetClients)
+	router.GET("/clients/:id", hdl.GetClientByID)
+	router.POST("/clients", hdl.CreateClient)
+	router.PATCH("/clients/:id", hdl.PatchClientByID)
+	router.DELETE("/clients/:id", hdl.DeleteClientByID)
 
-	router.GET("/sellers", handler.GetSellers)
-	router.GET("/sellers/:id", handler.GetSellerByID)
-	router.POST("/sellers", handler.CreateSeller)
-	router.PATCH("/sellers/:id", handler.PatchSellerByID)
-	router.DELETE("/sellers/:id", handler.DeleteSellerByID)
+	router.GET("/sellers", hdl.GetSellers)
+	router.GET("/sellers/:id", hdl.GetSellerByID)
+	router.POST("/sellers", hdl.CreateSeller)
+	router.PATCH("/sellers/:id", hdl.PatchSellerByID)
+	router.DELETE("/sellers/:id", hdl.DeleteSellerByID)
 
-	router.GET("/admins", handler.GetSellers)
-	router.GET("/admins/:id", handler.GetSellerByID)
-	router.POST("/admins", handler.CreateSeller)
-	router.PATCH("/admins/:id", handler.PatchSellerByID)
-	router.DELETE("/admins/:id", handler.DeleteSellerByID)
+	router.GET("/admins", hdl.GetSellers)
+	router.GET("/admins/:id", hdl.GetSellerByID)
+	router.POST("/admins", hdl.CreateSeller)
+	router.PATCH("/admins/:id", hdl.PatchSellerByID)
+	router.DELETE("/admins/:id", hdl.DeleteSellerByID)
 
 	server := &http.Server{
-		Addr:    ":8080",
-		Handler: router,
+		Addr:              ":8080",
+		Handler:           router,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	go func() {

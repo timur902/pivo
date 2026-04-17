@@ -2,7 +2,8 @@ package handler
 
 import (
 	"beer/internal/model"
-	positionrepo "beer/internal/repository/position"
+	"beer/internal/repository/position"
+	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"net/http"
@@ -10,7 +11,7 @@ import (
 	"time"
 )
 
-func GetPositions(c *gin.Context) {
+func (h *Handler) GetPositions(c *gin.Context) {
 	limit := 20
 	offset := 0
 	if rawLimit := c.Query("limit"); rawLimit != "" {
@@ -29,7 +30,7 @@ func GetPositions(c *gin.Context) {
 		}
 		offset = parsedOffset
 	}
-	positions, err := positionrepo.GetPositions(c.Request.Context(), limit, offset)
+	positions, err := h.positionRepo.GetPositions(c.Request.Context(), limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
@@ -37,7 +38,7 @@ func GetPositions(c *gin.Context) {
 	c.JSON(http.StatusOK, positions)
 }
 
-func CreatePosition(c *gin.Context) {
+func (h *Handler) CreatePosition(c *gin.Context) {
 	var req CreatePositionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
@@ -48,7 +49,7 @@ func CreatePosition(c *gin.Context) {
 		return
 	}
 	now := time.Now()
-	position := model.Position{
+	positionEntity := model.Position{
 		ID:          uuid.New(),
 		Name:        req.Name,
 		Description: req.Description,
@@ -59,40 +60,40 @@ func CreatePosition(c *gin.Context) {
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
-	if err := positionrepo.AddPosition(c.Request.Context(), position); err != nil {
+	if err := h.positionRepo.AddPosition(c.Request.Context(), positionEntity); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
-	c.JSON(http.StatusCreated, position)
+	c.JSON(http.StatusCreated, positionEntity)
 }
 
-func GetPositionByID(c *gin.Context) {
+func (h *Handler) GetPositionByID(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	position, ok, err := positionrepo.GetPositionByID(c.Request.Context(), id)
+	positionEntity, err := h.positionRepo.GetPositionByID(c.Request.Context(), id)
 	if err != nil {
+		if errors.Is(err, position.ErrPositionNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "position not found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
-	if ok {
-		c.JSON(http.StatusOK, position)
-		return
-	}
-	c.JSON(http.StatusNotFound, gin.H{"error": "position not found"})
+	c.JSON(http.StatusOK, positionEntity)
 }
 
-func DeletePositionByID(c *gin.Context) {
+func (h *Handler) DeletePositionByID(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	deleted, err := positionrepo.DeletePositionByID(c.Request.Context(), id)
+	deleted, err := h.positionRepo.DeletePositionByID(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
@@ -104,7 +105,7 @@ func DeletePositionByID(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-func PatchPositionByID(c *gin.Context) {
+func (h *Handler) PatchPositionByID(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -116,23 +117,22 @@ func PatchPositionByID(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
-	position, ok, err := positionrepo.PatchPositionByID(
-		c.Request.Context(),
-		id,
-		req.Name,
-		req.Description,
-		req.ImageURL,
-		req.SizeLiters,
-		req.Quantity,
-		req.Price,
-	)
+	patch := model.PositionPatch{
+		Name:        req.Name,
+		Description: req.Description,
+		ImageURL:    req.ImageURL,
+		SizeLiters:  req.SizeLiters,
+		Quantity:    req.Quantity,
+		Price:       req.Price,
+	}
+	positionEntity, err := h.positionRepo.PatchPositionByID(c.Request.Context(), id, patch)
 	if err != nil {
+		if errors.Is(err, position.ErrPositionNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "position not found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
-	if !ok {
-		c.JSON(http.StatusNotFound, gin.H{"error": "position not found"})
-		return
-	}
-	c.JSON(http.StatusOK, position)
+	c.JSON(http.StatusOK, positionEntity)
 }

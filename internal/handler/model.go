@@ -52,12 +52,20 @@ type UpdatePositionRequest struct {
 }
 
 func validateCreateClientRequest(req CreateClientRequest) error {
-	if strings.TrimSpace(req.Name) == "" ||
-		strings.TrimSpace(req.Phone) == "" ||
-		strings.TrimSpace(req.Email) == "" ||
-		strings.TrimSpace(req.Login) == "" ||
-		strings.TrimSpace(req.PasswordHash) == "" {
-		return errors.New("name, phone, email, login and password_hash are required")
+	if strings.TrimSpace(req.Name) == "" {
+		return errors.New("name is required")
+	}
+	if strings.TrimSpace(req.Phone) == "" {
+		return errors.New("phone is required")
+	}
+	if strings.TrimSpace(req.Email) == "" {
+		return errors.New("email is required")
+	}
+	if strings.TrimSpace(req.Login) == "" {
+		return errors.New("login is required")
+	}
+	if strings.TrimSpace(req.PasswordHash) == "" {
+		return errors.New("password_hash is required")
 	}
 	if len(req.Phone) > 20 {
 		return errors.New("phone must be at most 20 characters")
@@ -66,10 +74,14 @@ func validateCreateClientRequest(req CreateClientRequest) error {
 }
 
 func validateCreateSellerRequest(req CreateSellerRequest) error {
-	if strings.TrimSpace(req.Name) == "" ||
-		strings.TrimSpace(req.Login) == "" ||
-		strings.TrimSpace(req.PasswordHash) == "" {
-		return errors.New("name, login and password_hash are required")
+	if strings.TrimSpace(req.Name) == "" {
+		return errors.New("name is required")
+	}
+	if strings.TrimSpace(req.Login) == "" {
+		return errors.New("login is required")
+	}
+	if strings.TrimSpace(req.PasswordHash) == "" {
+		return errors.New("password_hash is required")
 	}
 	return nil
 }
