@@ -18,5 +18,37 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  order-service:
+    build:
+      context: .
+      dockerfile: order-service/Dockerfile
+    container_name: beer_order_service
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://beer_user:beer_password@postgres:5432/beer?sslmode=disable
+      GRPC_LISTEN_ADDR: ":50051"
+    ports:
+      - "50051:50051"
+
+  beer-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: beer_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      order-service:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgres://beer_user:beer_password@postgres:5432/beer?sslmode=disable
+      ORDER_SERVICE_ADDR: order-service:50051
+    ports:
+      - "8080:8080"
+
 volumes:
   postgres_data:

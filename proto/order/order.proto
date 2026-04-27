@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+package order.v1;
+
+option go_package = "beer/proto/order;orderpb";
+
+service OrderService {
+    rpc CreateOrder(CreateOrderRequest) returns (Order);
+    rpc GetOrder(GetOrderRequest) returns (Order);
+    rpc ListOrdersByClient(ListOrdersByClientRequest) returns (ListOrdersResponse);
+    rpc ListOrdersBySeller(ListOrdersBySellerRequest) returns (ListOrdersResponse);
+    rpc CancelOrderByClient(CancelOrderByClientRequest) returns (Order);
+    rpc UpdateStatusBySeller(UpdateStatusBySellerRequest) returns (Order);
+}
+
+message OrderItemInput {
+    string position_id = 1;
+    int32 quantity = 2;
+    int64 price = 3;
+}
+
+message OrderItem {
+    string id = 1;
+    string order_id = 2;
+    string position_id = 3;
+    int32 quantity = 4;
+    int64 price = 5;
+}
+
+message Order {
+    string id = 1;
+    string client_id = 2;
+    string seller_id = 3;
+    string status = 4;
+    string created_at = 5;
+    string updated_at = 6;
+    repeated OrderItem items = 7;
+}
+
+message CreateOrderRequest {
+    string client_id = 1;
+    string seller_id = 2;
+    repeated OrderItemInput items = 3;
+}
+
+message GetOrderRequest {
+    string order_id = 1;
+    string client_id = 2;
+}
+
+message ListOrdersByClientRequest {
+    string client_id = 1;
+    int32 limit = 2;
+    int32 offset = 3;
+}
+
+message ListOrdersBySellerRequest {
+    string seller_id = 1;
+    int32 limit = 2;
+    int32 offset = 3;
+}
+
+message ListOrdersResponse {
+    repeated Order orders = 1;
+}
+
+message CancelOrderByClientRequest {
+    string order_id = 1;
+    string client_id = 2;
+}
+
+message UpdateStatusBySellerRequest {
+    string order_id = 1;
+    string seller_id = 2;
+    string status = 3;
+}
