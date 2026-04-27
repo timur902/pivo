@@ -10,24 +10,16 @@ import (
 	"time"
 )
 
-var pool *pgxpool.Pool
-
-func SetPool(p *pgxpool.Pool) {
-	pool = p
+type Repository struct {
+	pool *pgxpool.Pool
 }
 
-func checkPool() error {
-	if pool == nil {
-		return errors.New("position repository is not initialized")
-	}
-	return nil
+func NewRepository(pool *pgxpool.Pool) *Repository {
+	return &Repository{pool: pool}
 }
 
-func GetPositions(ctx context.Context, limit int, offset int) ([]model.Position, error) {
-	if err := checkPool(); err != nil {
-		return nil, err
-	}
-	rows, err := pool.Query(ctx, `
+func (r *Repository) GetPositions(ctx context.Context, limit int, offset int) ([]model.Position, error) {
+	rows, err := r.pool.Query(ctx, `
 		SELECT id,name,description,image_url,size_liters,quantity,price,created_at,updated_at
 		FROM positions
 		ORDER BY created_at DESC
@@ -51,84 +43,69 @@ func GetPositions(ctx context.Context, limit int, offset int) ([]model.Position,
 	return positions, nil
 }
 
-func GetPositionByID(ctx context.Context, id uuid.UUID) (model.Position, bool, error) {
-	if err := checkPool(); err != nil {
-		return model.Position{}, false, err
-	}
+func (r *Repository) GetPositionByID(ctx context.Context, id uuid.UUID) (*model.Position, error) {
 	var p model.Position
-	err := pool.QueryRow(ctx, `
+	err := r.pool.QueryRow(ctx, `
 		SELECT id,name,description,image_url,size_liters,quantity,price,created_at,updated_at
 		FROM positions
 		WHERE id = $1
 	`, id).Scan(&p.ID, &p.Name, &p.Description, &p.ImageURL, &p.SizeLiters, &p.Quantity, &p.Price, &p.CreatedAt, &p.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return model.Position{}, false, nil
+		return nil, ErrPositionNotFound
 	}
 	if err != nil {
-		return model.Position{}, false, err
+		return nil, err
 	}
-	return p, true, nil
+	return &p, nil
 }
 
-func AddPosition(ctx context.Context, p model.Position) error {
-	if err := checkPool(); err != nil {
-		return err
-	}
-	_, err := pool.Exec(ctx, `
+func (r *Repository) AddPosition(ctx context.Context, p model.Position) error {
+	_, err := r.pool.Exec(ctx, `
 		INSERT INTO positions (id,name,description,image_url,size_liters,quantity,price,created_at,updated_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
 	`, p.ID, p.Name, p.Description, p.ImageURL, p.SizeLiters, p.Quantity, p.Price, p.CreatedAt, p.UpdatedAt)
 	return err
 }
 
-func DeletePositionByID(ctx context.Context, id uuid.UUID) (bool, error) {
-	if err := checkPool(); err != nil {
-		return false, err
-	}
-	tag, err := pool.Exec(ctx, `DELETE FROM positions WHERE id = $1`, id)
+func (r *Repository) DeletePositionByID(ctx context.Context, id uuid.UUID) (bool, error) {
+	tag, err := r.pool.Exec(ctx, `DELETE FROM positions WHERE id = $1`, id)
 	if err != nil {
 		return false, err
 	}
 	return tag.RowsAffected() > 0, nil
 }
 
-func PatchPositionByID(ctx context.Context, id uuid.UUID, name *string, description *string, imageURL *string, sizeLiters *float32, quantity *int, price *int64) (model.Position, bool, error) {
-	if err := checkPool(); err != nil {
-		return model.Position{}, false, err
-	}
-	current, ok, err := GetPositionByID(ctx, id)
+func (r *Repository) PatchPositionByID(ctx context.Context, id uuid.UUID, patch model.PositionPatch) (*model.Position, error) {
+	current, err := r.GetPositionByID(ctx, id)
 	if err != nil {
-		return model.Position{}, false, err
+		return nil, err
 	}
-	if !ok {
-		return model.Position{}, false, nil
+	if patch.Name != nil {
+		current.Name = *patch.Name
 	}
-	if name != nil {
-		current.Name = *name
+	if patch.Description != nil {
+		current.Description = *patch.Description
 	}
-	if description != nil {
-		current.Description = *description
+	if patch.ImageURL != nil {
+		current.ImageURL = *patch.ImageURL
 	}
-	if imageURL != nil {
-		current.ImageURL = *imageURL
+	if patch.SizeLiters != nil {
+		current.SizeLiters = *patch.SizeLiters
 	}
-	if sizeLiters != nil {
-		current.SizeLiters = *sizeLiters
+	if patch.Quantity != nil {
+		current.Quantity = *patch.Quantity
 	}
-	if quantity != nil {
-		current.Quantity = *quantity
-	}
-	if price != nil {
-		current.Price = *price
+	if patch.Price != nil {
+		current.Price = *patch.Price
 	}
 	current.UpdatedAt = time.Now()
-	_, err = pool.Exec(ctx, `
+	_, err = r.pool.Exec(ctx, `
 		UPDATE positions
 		SET name=$2,description=$3,image_url=$4,size_liters=$5,quantity=$6,price=$7,updated_at=$8
 		WHERE id=$1
 	`, id, current.Name, current.Description, current.ImageURL, current.SizeLiters, current.Quantity, current.Price, current.UpdatedAt)
 	if err != nil {
-		return model.Position{}, false, err
+		return nil, err
 	}
-	return current, true, nil
+	return current, nil
 }

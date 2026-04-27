@@ -12,25 +12,16 @@ import (
 	"time"
 )
 
-var pool *pgxpool.Pool
-var ErrLoginAlreadyExists = errors.New("login already exists")
-
-func SetPool(p *pgxpool.Pool) {
-	pool = p
+type Repository struct {
+	pool *pgxpool.Pool
 }
 
-func checkPool() error {
-	if pool == nil {
-		return errors.New("client repository is not initialized")
-	}
-	return nil
+func NewRepository(pool *pgxpool.Pool) *Repository {
+	return &Repository{pool: pool}
 }
 
-func GetClients(ctx context.Context) ([]model.Client, error) {
-	if err := checkPool(); err != nil {
-		return nil, err
-	}
-	rows, err := pool.Query(ctx, `
+func (r *Repository) GetClients(ctx context.Context) ([]model.Client, error) {
+	rows, err := r.pool.Query(ctx, `
 		SELECT id,name,phone,email,login,password_hash,created_at,updated_at
 		FROM clients
 		ORDER BY created_at DESC
@@ -53,30 +44,24 @@ func GetClients(ctx context.Context) ([]model.Client, error) {
 	return clients, nil
 }
 
-func GetClientByID(ctx context.Context, id uuid.UUID) (model.Client, bool, error) {
-	if err := checkPool(); err != nil {
-		return model.Client{}, false, err
-	}
+func (r *Repository) GetClientByID(ctx context.Context, id uuid.UUID) (*model.Client, error) {
 	var c model.Client
-	err := pool.QueryRow(ctx, `
+	err := r.pool.QueryRow(ctx, `
 		SELECT id,name,phone,email,login,password_hash,created_at,updated_at
 		FROM clients
 		WHERE id = $1
 	`, id).Scan(&c.ID, &c.Name, &c.Phone, &c.Email, &c.Login, &c.PasswordHash, &c.CreatedAt, &c.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return model.Client{}, false, nil
+		return nil, ErrClientNotFound
 	}
 	if err != nil {
-		return model.Client{}, false, err
+		return nil, err
 	}
-	return c, true, nil
+	return &c, nil
 }
 
-func AddClient(ctx context.Context, c model.Client) error {
-	if err := checkPool(); err != nil {
-		return err
-	}
-	_, err := pool.Exec(ctx, `
+func (r *Repository) AddClient(ctx context.Context, c model.Client) error {
+	_, err := r.pool.Exec(ctx, `
 		INSERT INTO clients (id,name,phone,email,login,password_hash,created_at,updated_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
 	`, c.ID, c.Name, c.Phone, c.Email, c.Login, c.PasswordHash, c.CreatedAt, c.UpdatedAt)
@@ -86,53 +71,44 @@ func AddClient(ctx context.Context, c model.Client) error {
 	return nil
 }
 
-func DeleteClientByID(ctx context.Context, id uuid.UUID) (bool, error) {
-	if err := checkPool(); err != nil {
-		return false, err
-	}
-	tag, err := pool.Exec(ctx, `DELETE FROM clients WHERE id = $1`, id)
+func (r *Repository) DeleteClientByID(ctx context.Context, id uuid.UUID) (bool, error) {
+	tag, err := r.pool.Exec(ctx, `DELETE FROM clients WHERE id = $1`, id)
 	if err != nil {
 		return false, err
 	}
 	return tag.RowsAffected() > 0, nil
 }
 
-func PatchClientByID(ctx context.Context, id uuid.UUID, name *string, phone *string, email *string, login *string, passwordHash *string) (model.Client, bool, error) {
-	if err := checkPool(); err != nil {
-		return model.Client{}, false, err
-	}
-	current, ok, err := GetClientByID(ctx, id)
+func (r *Repository) PatchClientByID(ctx context.Context, id uuid.UUID, patch model.ClientPatch) (*model.Client, error) {
+	current, err := r.GetClientByID(ctx, id)
 	if err != nil {
-		return model.Client{}, false, err
+		return nil, err
 	}
-	if !ok {
-		return model.Client{}, false, nil
+	if patch.Name != nil {
+		current.Name = *patch.Name
 	}
-	if name != nil {
-		current.Name = *name
+	if patch.Phone != nil {
+		current.Phone = *patch.Phone
 	}
-	if phone != nil {
-		current.Phone = *phone
+	if patch.Email != nil {
+		current.Email = *patch.Email
 	}
-	if email != nil {
-		current.Email = *email
+	if patch.Login != nil {
+		current.Login = *patch.Login
 	}
-	if login != nil {
-		current.Login = *login
-	}
-	if passwordHash != nil {
-		current.PasswordHash = *passwordHash
+	if patch.PasswordHash != nil {
+		current.PasswordHash = *patch.PasswordHash
 	}
 	current.UpdatedAt = time.Now()
-	_, err = pool.Exec(ctx, `
+	_, err = r.pool.Exec(ctx, `
 		UPDATE clients
 		SET name=$2,phone=$3,email=$4,login=$5,password_hash=$6,updated_at=$7
 		WHERE id=$1
 	`, id, current.Name, current.Phone, current.Email, current.Login, current.PasswordHash, current.UpdatedAt)
 	if err != nil {
-		return model.Client{}, false, mapClientWriteError(err)
+		return nil, mapClientWriteError(err)
 	}
-	return current, true, nil
+	return current, nil
 }
 
 func mapClientWriteError(err error) error {
