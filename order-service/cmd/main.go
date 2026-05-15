@@ -8,6 +8,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"beer/order-service/internal/config"
+	"beer/order-service/internal/events"
 	"beer/order-service/internal/repository"
 	"beer/order-service/internal/server"
 	"beer/order-service/internal/usecase"
@@ -19,23 +21,22 @@ import (
 )
 
 func main() {
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		databaseURL = "postgres://beer_user:beer_password@localhost:5432/beer?sslmode=disable"
-	}
-	listenAddr := os.Getenv("GRPC_LISTEN_ADDR")
-	if listenAddr == "" {
-		listenAddr = ":50051"
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("config load failed: %v", err)
 	}
 
-	pool, err := pgprovider.NewPool(context.Background(), databaseURL)
+	pool, err := pgprovider.NewPool(context.Background(), cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("database connection failed: %v", err)
 	}
 	defer pool.Close()
 
+	producer := events.NewProducer(cfg.KafkaBrokers, cfg.KafkaTopicOrdersReady)
+	defer producer.Close()
+
 	repo := repository.NewRepository(pool)
-	uc := usecase.NewUsecase(repo)
+	uc := usecase.NewUsecase(repo, producer)
 	srv := server.NewServer(uc)
 
 	grpcServer := grpc.NewServer(
@@ -43,13 +44,13 @@ func main() {
 	)
 	orderpb.RegisterOrderServiceServer(grpcServer, srv)
 
-	listener, err := net.Listen("tcp", listenAddr)
+	listener, err := net.Listen("tcp", cfg.GRPCListenAddr)
 	if err != nil {
 		log.Fatalf("listen failed: %v", err)
 	}
 
 	go func() {
-		log.Printf("order-service gRPC listening on %s", listenAddr)
+		log.Printf("order-service gRPC listening on %s", cfg.GRPCListenAddr)
 		if err := grpcServer.Serve(listener); err != nil {
 			log.Fatalf("grpc server failed: %v", err)
 		}

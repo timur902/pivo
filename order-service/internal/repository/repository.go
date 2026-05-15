@@ -56,7 +56,7 @@ func (r *Repository) CreateOrder(ctx context.Context, clientID, sellerID uuid.UU
 		ID:        uuid.New(),
 		ClientID:  clientID,
 		SellerID:  sellerID,
-		Status:    "new",
+		Status:    StatusNew,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
@@ -201,11 +201,11 @@ func (r *Repository) UpdateStatus(ctx context.Context, orderID uuid.UUID, expect
 	}
 
 	switch ownerField {
-	case "client_id":
+	case OwnerFieldClient:
 		if current.ClientID != ownerID {
 			return nil, ErrOrderNotOwnedByActor
 		}
-	case "seller_id":
+	case OwnerFieldSeller:
 		if current.SellerID != ownerID {
 			return nil, ErrOrderNotOwnedByActor
 		}

@@ -1,1 +1,22 @@
+# Локальные секреты и конфиги
+.env
+.env.local
+.env.*.local
+
+# Claude Code (персональные разрешения)
 .claude/
+
+# Бинарники
+/bin/
+*.exe
+*.test
+*.out
+
+# Go workspace
+go.work
+go.work.sum
+
+# IDE
+.idea/
+.vscode/
+*.swp

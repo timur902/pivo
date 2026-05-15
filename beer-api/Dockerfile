@@ -3,7 +3,7 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o /out/beer-api ./cmd/api
+RUN CGO_ENABLED=0 GOOS=linux go build -o /out/beer-api ./beer-api/cmd
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=builder /out/beer-api /beer-api

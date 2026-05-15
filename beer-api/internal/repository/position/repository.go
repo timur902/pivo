@@ -1,7 +1,7 @@
 package position
 
 import (
-	"beer/internal/model"
+	"beer/beer-api/internal/model"
 	"context"
 	"errors"
 	"github.com/google/uuid"

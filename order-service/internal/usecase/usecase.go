@@ -2,16 +2,26 @@ package usecase
 
 import (
 	"context"
+	"log"
+	"time"
+
+	"beer/order-service/internal/events"
 	"beer/order-service/internal/repository"
+
 	"github.com/google/uuid"
 )
 
-type Usecase struct {
-	repo *repository.Repository
+type EventPublisher interface {
+	PublishOrderReady(ctx context.Context, evt events.OrderReadyEvent) error
 }
 
-func NewUsecase(repo *repository.Repository) *Usecase {
-	return &Usecase{repo: repo}
+type Usecase struct {
+	repo      *repository.Repository
+	publisher EventPublisher
+}
+
+func NewUsecase(repo *repository.Repository, publisher EventPublisher) *Usecase {
+	return &Usecase{repo: repo, publisher: publisher}
 }
 
 func (u *Usecase) CreateOrder(ctx context.Context, clientID, sellerID uuid.UUID, items []repository.NewOrderItem) (*repository.Order, error) {
@@ -60,12 +70,28 @@ func (u *Usecase) ListOrdersBySeller(ctx context.Context, sellerID uuid.UUID, li
 }
 
 func (u *Usecase) CancelOrderByClient(ctx context.Context, orderID, clientID uuid.UUID) (*repository.Order, error) {
-	return u.repo.UpdateStatus(ctx, orderID, "new", "cancelled", "client_id", clientID)
+	return u.repo.UpdateStatus(ctx, orderID, repository.StatusNew, repository.StatusCancelled, repository.OwnerFieldClient, clientID)
 }
 
 func (u *Usecase) UpdateStatusBySeller(ctx context.Context, orderID, sellerID uuid.UUID, targetStatus string) (*repository.Order, error) {
-	if targetStatus != "ready" && targetStatus != "cancelled" {
+	if targetStatus != repository.StatusReady && targetStatus != repository.StatusCancelled {
 		return nil, ErrInvalidTargetStat
 	}
-	return u.repo.UpdateStatus(ctx, orderID, "new", targetStatus, "seller_id", sellerID)
+	order, err := u.repo.UpdateStatus(ctx, orderID, repository.StatusNew, targetStatus, repository.OwnerFieldSeller, sellerID)
+	if err != nil {
+		return nil, err
+	}
+	if order.Status == repository.StatusReady && u.publisher != nil {
+		evt := events.OrderReadyEvent{
+			OrderID:    order.ID.String(),
+			ClientID:   order.ClientID.String(),
+			SellerID:   order.SellerID.String(),
+			Status:     order.Status,
+			OccurredAt: time.Now().UTC(),
+		}
+		if err := u.publisher.PublishOrderReady(ctx, evt); err != nil {
+			log.Printf("publish order.ready failed: order_id=%s err=%v", order.ID, err)
+		}
+	}
+	return order, nil
 }
