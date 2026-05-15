@@ -6,15 +6,17 @@ import (
 	"beer/internal/repository/position"
 	"beer/internal/repository/seller"
 	"beer/internal/usecase/seller"
+	"beer/pkg/orderclient"
 	"beer/pkg/pgprovider"
 	"context"
-	"github.com/gin-gonic/gin"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -22,16 +24,28 @@ func main() {
 	if databaseURL == "" {
 		databaseURL = "postgres://beer_user:beer_password@localhost:5432/beer?sslmode=disable"
 	}
+	orderServiceAddr := os.Getenv("ORDER_SERVICE_ADDR")
+	if orderServiceAddr == "" {
+		orderServiceAddr = "localhost:50051"
+	}
+
 	pool, err := pgprovider.NewPool(context.Background(), databaseURL)
 	if err != nil {
 		log.Fatalf("database connection failed: %v", err)
 	}
 	defer pool.Close()
+
+	orderConn, orderClient, err := orderclient.Dial(orderServiceAddr)
+	if err != nil {
+		log.Fatalf("order-service dial failed: %v", err)
+	}
+	defer orderConn.Close()
+
 	clientRepo := client.NewRepository(pool)
 	sellerRepo := seller.NewRepository(pool)
 	positionRepo := position.NewRepository(pool)
 	sellerUC := sellerusecase.NewUsecase(sellerRepo)
-	hdl := handler.NewHandler(clientRepo, positionRepo, sellerUC)
+	hdl := handler.NewHandler(clientRepo, positionRepo, sellerUC, orderClient)
 
 	router := gin.Default()
 
@@ -58,6 +72,14 @@ func main() {
 	router.POST("/admins", hdl.CreateSeller)
 	router.PATCH("/admins/:id", hdl.PatchSellerByID)
 	router.DELETE("/admins/:id", hdl.DeleteSellerByID)
+
+	router.POST("/orders", hdl.CreateOrder)
+	router.GET("/orders", hdl.ListClientOrders)
+	router.GET("/orders/:id", hdl.GetOrderByID)
+	router.DELETE("/orders/:id", hdl.CancelOrderByClient)
+
+	router.GET("/seller/orders", hdl.ListSellerOrders)
+	router.PATCH("/seller/orders/:id/status", hdl.UpdateOrderStatusBySeller)
 
 	server := &http.Server{
 		Addr:              ":8080",
