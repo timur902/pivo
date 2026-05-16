@@ -1,8 +1,8 @@
 package sellerusecase
 
 import (
-	"beer/internal/model"
-	"beer/internal/repository/seller"
+	"beer/beer-api/internal/model"
+	"beer/beer-api/internal/repository/seller"
 	"context"
 	"errors"
 	"github.com/google/uuid"

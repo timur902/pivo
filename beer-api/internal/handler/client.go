@@ -1,8 +1,8 @@
 package handler
 
 import (
-	"beer/internal/model"
-	"beer/internal/repository/client"
+	"beer/beer-api/internal/model"
+	"beer/beer-api/internal/repository/client"
 	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

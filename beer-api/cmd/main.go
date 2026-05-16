@@ -1,11 +1,12 @@
 package main
 
 import (
-	"beer/internal/handler"
-	"beer/internal/repository/client"
-	"beer/internal/repository/position"
-	"beer/internal/repository/seller"
-	"beer/internal/usecase/seller"
+	"beer/beer-api/internal/config"
+	"beer/beer-api/internal/handler"
+	"beer/beer-api/internal/repository/client"
+	"beer/beer-api/internal/repository/position"
+	"beer/beer-api/internal/repository/seller"
+	"beer/beer-api/internal/usecase/seller"
 	"beer/pkg/orderclient"
 	"beer/pkg/pgprovider"
 	"context"
@@ -20,22 +21,18 @@ import (
 )
 
 func main() {
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		databaseURL = "postgres://beer_user:beer_password@localhost:5432/beer?sslmode=disable"
-	}
-	orderServiceAddr := os.Getenv("ORDER_SERVICE_ADDR")
-	if orderServiceAddr == "" {
-		orderServiceAddr = "localhost:50051"
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("config load failed: %v", err)
 	}
 
-	pool, err := pgprovider.NewPool(context.Background(), databaseURL)
+	pool, err := pgprovider.NewPool(context.Background(), cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("database connection failed: %v", err)
 	}
 	defer pool.Close()
 
-	orderConn, orderClient, err := orderclient.Dial(orderServiceAddr)
+	orderConn, orderClient, err := orderclient.Dial(cfg.OrderServiceAddr)
 	if err != nil {
 		log.Fatalf("order-service dial failed: %v", err)
 	}
@@ -82,7 +79,7 @@ func main() {
 	router.PATCH("/seller/orders/:id/status", hdl.UpdateOrderStatusBySeller)
 
 	server := &http.Server{
-		Addr:              ":8080",
+		Addr:              cfg.HTTPListenAddr,
 		Handler:           router,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,

@@ -1,9 +1,9 @@
 package handler
 
 import (
-	"beer/internal/repository/client"
-	"beer/internal/repository/position"
-	"beer/internal/usecase/seller"
+	"beer/beer-api/internal/repository/client"
+	"beer/beer-api/internal/repository/position"
+	"beer/beer-api/internal/usecase/seller"
 	"beer/proto/order"
 )
 

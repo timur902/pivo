@@ -5,11 +5,17 @@
 ## Быстрый старт
 1. Запустить PostgreSQL:
 ```bash
-docker compose up -d postgres
+docker compose up -d postgres kafka
 ```
 2. Накатить миграции:
 ```bash
 make migrate-up
+```
+3. Запустить в трёх разных терминалах:
+``` bash
+make run-beer-api
+make run-order-service
+make run-notification-service
 ```
 
 ## Полезные команды
